@@ -41,7 +41,7 @@ export async function PATCH(req: Request) {
     const enabled = typeof parsed.enabled === 'boolean' ? parsed.enabled : undefined
     if (!name || enabled === undefined) {
         return NextResponse.json(
-            { error: 'name(영문 소문자 확장자)과 enabled(boolean)가 필요합니다.' },
+            { error: '영문 소문자 확장자와 체크박스 상태가 필요합니다.' },
             { status: 400 }
         )
     }

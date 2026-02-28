@@ -33,7 +33,9 @@ export async function getPolicy(ruleSetKey: string): Promise<PolicyResponse | nu
 export async function ensurePolicy(ruleSetKey: string, displayName?: string): Promise<PolicyResponse> {
     const existing = await prisma.extensionRuleSet.findUnique({
         where: { key: ruleSetKey },
-        include: { extensions: true },
+        include: {
+            extensions: { orderBy: { extensionName: 'asc' } },
+        },
     })
     if (existing) {
         return toPolicyResponse(existing)
