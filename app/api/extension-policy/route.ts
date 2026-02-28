@@ -42,6 +42,44 @@ export async function GET() {
     return NextResponse.json({ data })
 }
 
+/** 고정 확장자 하나의 enabled만 갱신 (토글용) */
+export async function PATCH(req: Request) {
+    let body: unknown
+    try {
+        body = await req.json()
+    } catch {
+        return NextResponse.json({ error: 'JSON 본문이 올바르지 않습니다.' }, { status: 400 })
+    }
+    const parsed = body as { name?: unknown; enabled?: unknown }
+    const name = normalizeExtensionName(parsed?.name)
+    const enabled = typeof parsed.enabled === 'boolean' ? parsed.enabled : undefined
+    if (!name || enabled === undefined) {
+        return NextResponse.json(
+            { error: 'name(영문 소문자 확장자)과 enabled(boolean)가 필요합니다.' },
+            { status: 400 }
+        )
+    }
+
+    const ruleSet = await prisma.extensionRuleSet.findUnique({
+        where: { key: DEFAULT_RULESET_KEY },
+        select: { id: true },
+    })
+    if (!ruleSet) {
+        return NextResponse.json({ error: '기본 정책이 없습니다. init을 먼저 호출하세요.' }, { status: 404 })
+    }
+
+    await prisma.extension.updateMany({
+        where: {
+            ruleSetId: ruleSet.id,
+            extensionName: name,
+            isFixed: true,
+        },
+        data: { enabled },
+    })
+
+    return NextResponse.json({ ok: true })
+}
+
 export async function POST(req: Request) {
     let body: unknown
     try {

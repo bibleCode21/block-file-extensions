@@ -46,13 +46,31 @@ export default function ExtensionPolicy() {
     }, [])
 
     const toggleFixed = (name: string) => {
+        const current = fixedExtensions.find(ext => ext.name === name)
+        if (!current) return
+        const nextEnabled = !current.checked
+
         setFixedExtensions(prev =>
             prev.map(ext =>
-                ext.name === name
-                    ? { ...ext, checked: !ext.checked }
-                    : ext
+                ext.name === name ? { ...ext, checked: nextEnabled } : ext
             )
         )
+
+        fetch('/api/extension-policy', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name, enabled: nextEnabled }),
+        })
+            .then(res => {
+                if (!res.ok) throw new Error()
+            })
+            .catch(() => {
+                setFixedExtensions(prev =>
+                    prev.map(ext =>
+                        ext.name === name ? { ...ext, checked: current.checked } : ext
+                    )
+                )
+            })
     }
 
     const addExtension = () => {
