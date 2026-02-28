@@ -6,28 +6,33 @@ datasource db {
   provider = "postgresql"
 }
 
-model ExtensionPolicy {
-  id        String   @id @default(uuid()) @db.Uuid @map("id")
-  name      String   @map("name")
+model ExtensionRuleSet {
+  id          String  @id @default(uuid()) @db.Uuid
+  key         String  @unique @map("rule_set_key")
+  name        String
+  description String?
+  isDefault   Boolean @default(false) @map("is_default")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  extensions Extension[] @relation("PolicyExtensions")
+  extensions Extension[]
 
-  @@map("extension_policies")
+  @@map("extension_rule_sets")
 }
 
 model Extension {
-  id            String   @id @default(uuid()) @db.Uuid @map("id")
-  policyId      String   @db.Uuid @map("policy_id")
-  extensionName String   @map("extension_name")
-  isFixed       Boolean  @map("is_fixed")
-  enabled       Boolean  @default(true) @map("enabled")
-  createdAt     DateTime @default(now()) @map("created_at")
+  id        String @id @default(uuid()) @db.Uuid
+  ruleSetId String @map("rule_set_id") @db.Uuid
 
-  policy ExtensionPolicy
-    @relation("PolicyExtensions", fields: [policyId], references: [id])
+  extensionName String  @map("extension_name")
+  isFixed       Boolean @map("is_fixed")
+  enabled       Boolean @default(true)
 
-  @@unique([policyId, extensionName])
+  createdAt DateTime @default(now()) @map("created_at")
+
+  ruleSet ExtensionRuleSet @relation(fields: [ruleSetId], references: [id])
+
+  @@unique([ruleSetId, extensionName])
   @@map("extensions")
 }

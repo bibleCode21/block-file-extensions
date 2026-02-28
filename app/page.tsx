@@ -1,4 +1,4 @@
-import ExtensionPolicy from './components/ExtensionPolicy'
+import ExtensionPolicy from './components/extension-policy'
 
 export default function Page() {
   return <ExtensionPolicy />
