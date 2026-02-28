@@ -8,7 +8,7 @@ import { CustomExtensionList } from './CustomExtensionList'
 import { validateCustomExtension } from './validation'
 import { toFixedExtensions } from './api'
 import type { ExtensionPolicyData } from './types'
-import { MAX_EXTENSION_NAME_LENGTH } from '@/lib/extension-policy-api'
+import { MAX_EXTENSION_NAME_LENGTH } from '@/backend/controllers/extension-policy-controller'
 
 export default function ExtensionPolicy() {
     const [fixedExtensions, setFixedExtensions] = useState<FixedExtension[]>([])

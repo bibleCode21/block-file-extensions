@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
-import { DEFAULT_RULESET_KEY } from '@/lib/extension-policy-api'
-import { ensurePolicy } from '@/lib/extension-policy-service'
+import { DEFAULT_RULESET_KEY } from '@/backend/controllers/extension-policy-controller'
+import { ensurePolicy } from '@/backend/services/extension-policy-service'
+
+export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/extension-policy/init

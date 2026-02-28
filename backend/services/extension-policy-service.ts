@@ -1,10 +1,10 @@
+import 'server-only'
 import { prisma } from '@/lib/prisma'
+import { toPolicyResponse, type PolicyResponse } from '@/backend/dto/extension-policy.dto'
 import {
     DEFAULT_FIXED_EXTENSION_NAMES,
     MAX_EXTENSION_NAME_LENGTH,
-    toPolicyResponse,
-    type PolicyResponse,
-} from './extension-policy-api'
+} from '@/backend/controllers/extension-policy-controller'
 
 type FixedExtensionDto = {
     name: string
@@ -187,4 +187,3 @@ export async function savePolicy(ruleSetKey: string, input: SavePolicyInput): Pr
 
     return toPolicyResponse(saved)
 }
-

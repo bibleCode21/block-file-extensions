@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server'
-import { DEFAULT_RULESET_KEY } from '@/lib/extension-policy-api'
+import { DEFAULT_RULESET_KEY } from '@/backend/controllers/extension-policy-controller'
 import {
     getPolicy,
     updateFixedExtensionEnabled,
     savePolicy,
     type SavePolicyInput,
-} from '@/lib/extension-policy-service'
+} from '@/backend/services/extension-policy-service'
+
+export const dynamic = 'force-dynamic'
 
 type FixedExtensionInput = {
     name: string
