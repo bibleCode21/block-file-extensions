@@ -40,7 +40,7 @@ export async function handlePatch(req: Request): Promise<ControllerResponse> {
         return { status: 200, body: { ok: true } }
     } catch (e) {
         const message = e instanceof Error ? e.message : '고정 확장자 상태 변경 중 오류가 발생했습니다.'
-        const status = message.includes('기본 정책이 없습니다')
+        const status = message.includes('없습니다')
             ? 404
             : message.includes('고정 확장자만 토글')
               ? 400
