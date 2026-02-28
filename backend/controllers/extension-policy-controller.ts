@@ -1,15 +1,15 @@
 import { DEFAULT_RULESET_KEY } from '@/backend/constants/extension-policy'
 import { extensionPolicyService } from '@/backend/container'
-import { AppError } from '@/backend/errors'
+import { ValidationError } from '@/backend/errors'
+import { parseJsonBody, handleError } from '@/backend/utils/request'
+import type { ControllerResponse } from '@/backend/utils/request'
 
-export type ControllerResponse = { status: number; body: object }
+const RULESET_KEY_PATTERN = /^[a-z0-9][a-z0-9_-]{0,62}$/
 
-function handleError(e: unknown, fallbackMessage: string): ControllerResponse {
-    if (e instanceof AppError) {
-        return { status: e.statusCode, body: { error: e.message } }
+function validateRuleSetKey(key: string): void {
+    if (!RULESET_KEY_PATTERN.test(key)) {
+        throw new ValidationError('ruleSetKey는 영문 소문자·숫자·하이픈·언더스코어로 구성된 1~63자여야 합니다.')
     }
-    const message = e instanceof Error ? e.message : fallbackMessage
-    return { status: 500, body: { error: message } }
 }
 
 function normalizeExtensionName(raw: unknown): string | null {
@@ -28,13 +28,7 @@ export async function handleGet(): Promise<ControllerResponse> {
 }
 
 export async function handlePatch(req: Request): Promise<ControllerResponse> {
-    let body: unknown
-    try {
-        body = await req.json()
-    } catch {
-        return { status: 400, body: { error: 'JSON 본문이 올바르지 않습니다.' } }
-    }
-    const parsed = body as { name?: unknown; enabled?: unknown }
+    const parsed = await parseJsonBody<{ name?: unknown; enabled?: unknown }>(req)
     const name = normalizeExtensionName(parsed?.name)
     const enabled = typeof parsed.enabled === 'boolean' ? parsed.enabled : undefined
     if (!name || enabled === undefined) {
@@ -54,14 +48,7 @@ export async function handlePatch(req: Request): Promise<ControllerResponse> {
 
 /** 커스텀 확장자 단건 추가 */
 export async function handlePost(req: Request): Promise<ControllerResponse> {
-    let body: unknown
-    try {
-        body = await req.json()
-    } catch {
-        return { status: 400, body: { error: 'JSON 본문이 올바르지 않습니다.' } }
-    }
-
-    const parsed = body as { name?: unknown }
+    const parsed = await parseJsonBody<{ name?: unknown }>(req)
     const name = normalizeExtensionName(parsed?.name)
     if (!name) {
         return { status: 400, body: { error: '유효한 확장자 이름(영문 소문자)이 필요합니다.' } }
@@ -77,6 +64,8 @@ export async function handlePost(req: Request): Promise<ControllerResponse> {
 
 /** 커스텀 확장자 삭제 */
 export async function handleDelete(ruleSetKey: string, rawName: string): Promise<ControllerResponse> {
+    validateRuleSetKey(ruleSetKey)
+
     const name = normalizeExtensionName(rawName)
     if (!name) {
         return { status: 400, body: { error: '유효한 확장자 이름(영문 소문자)이 필요합니다.' } }
@@ -92,14 +81,7 @@ export async function handleDelete(ruleSetKey: string, rawName: string): Promise
 
 /** 정책 설정(maxCustomExtensions, maxExtensionNameLength) 변경 */
 export async function handlePatchSettings(req: Request): Promise<ControllerResponse> {
-    let body: unknown
-    try {
-        body = await req.json()
-    } catch {
-        return { status: 400, body: { error: 'JSON 본문이 올바르지 않습니다.' } }
-    }
-
-    const parsed = body as { maxCustomExtensions?: unknown; maxExtensionNameLength?: unknown }
+    const parsed = await parseJsonBody<{ maxCustomExtensions?: unknown; maxExtensionNameLength?: unknown }>(req)
     const settings: { maxCustomExtensions?: number; maxExtensionNameLength?: number } = {}
 
     if (parsed.maxCustomExtensions !== undefined) {

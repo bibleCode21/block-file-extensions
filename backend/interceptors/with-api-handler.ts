@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { AppError } from '@/backend/errors'
-import type { ControllerResponse } from '@/backend/controllers/extension-policy-controller'
+import type { ControllerResponse } from '@/backend/utils/request'
 
 type HandlerFn<T extends unknown[]> = (...args: T) => Promise<ControllerResponse>
 
