@@ -21,7 +21,9 @@ export type SavePolicyInput = {
 export async function getPolicy(ruleSetKey: string): Promise<PolicyResponse | null> {
     const ruleSet = await prisma.extensionRuleSet.findUnique({
         where: { key: ruleSetKey },
-        include: { extensions: true },
+        include: {
+            extensions: { orderBy: { extensionName: 'asc' } },
+        },
     })
     if (!ruleSet) return null
     return toPolicyResponse(ruleSet)
