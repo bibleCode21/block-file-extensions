@@ -158,7 +158,7 @@ export default function ExtensionPolicy() {
                                 onClick={addExtension}
                                 className="bg-[#AAAAAA] text-white px-4 py-1 rounded-lg"
                             >
-                                +추가
+                                +추가 
                             </button>
                         </div>
 

@@ -15,7 +15,7 @@ export function validateCustomExtension(
     if (value.startsWith('.')) value = value.slice(1)
 
     if (value.length > MAX_EXTENSION_NAME_LENGTH) {
-        return { success: false, error: `확장자 이름은 ${MAX_EXTENSION_NAME_LENGTH}자 이하여야 합니다.` }
+        return { success: false, error: `확장자는 ${MAX_EXTENSION_NAME_LENGTH}자 이하여야 합니다.` }
     }
 
     if (!/^[a-z0-9]+$/.test(value)) {

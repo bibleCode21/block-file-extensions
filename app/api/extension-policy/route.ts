@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
+import { DEFAULT_RULESET_KEY } from '@/lib/extension-policy-api'
 import {
-    DEFAULT_RULESET_KEY,
-    MAX_EXTENSION_NAME_LENGTH,
-    toPolicyResponse,
-} from '@/lib/extension-policy-api'
+    getPolicy,
+    updateFixedExtensionEnabled,
+    savePolicy,
+    type SavePolicyInput,
+} from '@/lib/extension-policy-service'
 
 type FixedExtensionInput = {
     name: string
@@ -22,24 +23,8 @@ function normalizeExtensionName(raw: unknown) {
     return value
 }
 
-function toFixedEnabled(input: FixedExtensionInput) {
-    if (typeof input.enabled === 'boolean') return input.enabled
-    if (typeof input.checked === 'boolean') return input.checked
-    return false
-}
-
-/** 기본 룰셋 조회만 수행. 없으면 null 반환(생성하지 않음). */
-async function readDefaultRuleSet() {
-    const ruleSet = await prisma.extensionRuleSet.findUnique({
-        where: { key: DEFAULT_RULESET_KEY },
-        include: { extensions: true },
-    })
-    if (!ruleSet) return null
-    return toPolicyResponse(ruleSet)
-}
-
 export async function GET() {
-    const data = await readDefaultRuleSet()
+    const data = await getPolicy(DEFAULT_RULESET_KEY)
     return NextResponse.json({ data })
 }
 
@@ -61,24 +46,18 @@ export async function PATCH(req: Request) {
         )
     }
 
-    const ruleSet = await prisma.extensionRuleSet.findUnique({
-        where: { key: DEFAULT_RULESET_KEY },
-        select: { id: true },
-    })
-    if (!ruleSet) {
-        return NextResponse.json({ error: '기본 정책이 없습니다. init을 먼저 호출하세요.' }, { status: 404 })
+    try {
+        await updateFixedExtensionEnabled(DEFAULT_RULESET_KEY, name, enabled)
+        return NextResponse.json({ ok: true })
+    } catch (e) {
+        const message = e instanceof Error ? e.message : '고정 확장자 상태 변경 중 오류가 발생했습니다.'
+        const status = message.includes('기본 정책이 없습니다')
+            ? 404
+            : message.includes('고정 확장자만 토글')
+              ? 400
+              : 500
+        return NextResponse.json({ error: message }, { status })
     }
-
-    await prisma.extension.updateMany({
-        where: {
-            ruleSetId: ruleSet.id,
-            extensionName: name,
-            isFixed: true,
-        },
-        data: { enabled },
-    })
-
-    return NextResponse.json({ ok: true })
 }
 
 export async function POST(req: Request) {
@@ -95,11 +74,11 @@ export async function POST(req: Request) {
     const customRaw = Array.isArray(parsed.customExtensions) ? (parsed.customExtensions as unknown[]) : []
     const ruleSetName = typeof parsed.name === 'string' && parsed.name.trim() ? parsed.name.trim() : '기본 정책'
 
-    const fixedExtensions = fixedRaw
+    const fixedExtensions: SavePolicyInput['fixedExtensions'] = fixedRaw
         .map(item => item as FixedExtensionInput)
         .map(item => ({
             name: normalizeExtensionName(item?.name),
-            enabled: toFixedEnabled(item),
+            enabled: typeof item.enabled === 'boolean' ? item.enabled : !!item.checked,
         }))
         .filter((x): x is { name: string; enabled: boolean } => Boolean(x.name))
 
@@ -107,111 +86,18 @@ export async function POST(req: Request) {
         .map(normalizeExtensionName)
         .filter((x): x is string => Boolean(x))
 
-    // 중복 제거 (입력 배열 내 중복)
-    const fixedMap = new Map<string, boolean>()
-    for (const ext of fixedExtensions) fixedMap.set(ext.name, ext.enabled)
-    const fixedNames = [...fixedMap.keys()]
-
-    const customSet = new Set<string>(customExtensions)
-    const customNames = [...customSet]
-
-    // 고정/커스텀 간 중복 방지 (스키마 unique와 정책상 중복 불가)
-    const overlap = customNames.filter(x => fixedMap.has(x))
-    if (overlap.length > 0) {
-        return NextResponse.json(
-            { error: `고정 확장자와 중복된 값이 있습니다: ${overlap.join(', ')}` },
-            { status: 400 }
-        )
-    }
-
-    const existingRuleSet = await prisma.extensionRuleSet.findUnique({
-        where: { key: DEFAULT_RULESET_KEY },
-    })
-    const maxCustom = existingRuleSet?.maxCustomExtensions ?? 200
-    if (customNames.length > maxCustom) {
-        return NextResponse.json(
-            { error: `커스텀 확장자는 최대 ${maxCustom}개까지 등록할 수 있습니다.` },
-            { status: 400 }
-        )
-    }
-    const tooLong = customNames.find(name => name.length > MAX_EXTENSION_NAME_LENGTH)
-    if (tooLong) {
-        return NextResponse.json(
-            { error: `확장자 이름은 ${MAX_EXTENSION_NAME_LENGTH}자 이하여야 합니다. (예: ${tooLong})` },
-            { status: 400 }
-        )
-    }
-
-    const saved = await prisma.$transaction(async tx => {
-        const ruleSet = await tx.extensionRuleSet.upsert({
-            where: { key: DEFAULT_RULESET_KEY },
-            create: {
-                key: DEFAULT_RULESET_KEY,
-                name: ruleSetName,
-                isDefault: true,
-            },
-            update: {
-                name: ruleSetName,
-                isDefault: true,
-            },
+    try {
+        const data = await savePolicy(DEFAULT_RULESET_KEY, {
+            name: ruleSetName,
+            fixedExtensions,
+            customExtensions,
         })
-
-        // 이번 요청 기준으로 목록을 동기화(삭제 포함)
-        await tx.extension.deleteMany({
-            where: {
-                ruleSetId: ruleSet.id,
-                OR: [
-                    { isFixed: true, extensionName: { notIn: fixedNames } },
-                    { isFixed: false, extensionName: { notIn: customNames } },
-                ],
-            },
-        })
-
-        // 고정 확장자 upsert
-        for (const ext of fixedMap.entries()) {
-            const [extensionName, enabled] = ext
-            await tx.extension.upsert({
-                where: { ruleSetId_extensionName: { ruleSetId: ruleSet.id, extensionName } },
-                create: {
-                    ruleSetId: ruleSet.id,
-                    extensionName,
-                    enabled,
-                    isFixed: true,
-                },
-                update: {
-                    enabled,
-                    isFixed: true,
-                },
-            })
-        }
-
-        // 커스텀 확장자 upsert (항상 enabled=true)
-        for (const extensionName of customNames) {
-            await tx.extension.upsert({
-                where: { ruleSetId_extensionName: { ruleSetId: ruleSet.id, extensionName } },
-                create: {
-                    ruleSetId: ruleSet.id,
-                    extensionName,
-                    enabled: true,
-                    isFixed: false,
-                },
-                update: {
-                    enabled: true,
-                    isFixed: false,
-                },
-            })
-        }
-
-        const refreshed = await tx.extensionRuleSet.findUnique({
-            where: { id: ruleSet.id },
-            include: { extensions: true },
-        })
-
-        return refreshed
-    })
-
-    return NextResponse.json({
-        data: saved ? toPolicyResponse(saved) : null,
-    })
+        return NextResponse.json({ data })
+    } catch (e) {
+        const message = e instanceof Error ? e.message : '정책 저장 중 오류가 발생했습니다.'
+        // 도메인 검증 에러는 400으로 간주
+        const status = message.includes('중복') || message.includes('최대') || message.includes('이하여야') ? 400 : 500
+        return NextResponse.json({ error: message }, { status })
+    }
 }
 
