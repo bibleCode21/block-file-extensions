@@ -19,7 +19,7 @@ Next.js에서 할 수 있는 구조(미들웨어 → Route Handler → 서비스
 
 ### 무엇을 구현할지
 
-- **파일**: `backend/services/extension-policy-service.ts`
+- **파일**: `backend/services/extension-policy.service.ts` (인터페이스: `extension-policy.service.interface.ts`)
 - **역할**:
   - 기본 정책 **조회**: `getDefaultPolicy()` → DB에서 default 룰셋 + extensions 읽어서 API 응답 형태로 반환
   - 기본 정책 **저장**: `saveDefaultPolicy(payload)` → 비즈니스 검증(중복·최대 개수·이름 길이) 후 `prisma.$transaction`으로 룰셋 upsert → extension deleteMany → 고정/커스텀 extension upsert → 저장 결과 반환

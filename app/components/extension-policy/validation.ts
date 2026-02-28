@@ -1,5 +1,5 @@
 import type { FixedExtension } from './types'
-import { MAX_EXTENSION_NAME_LENGTH } from '@/backend/controllers/extension-policy-controller'
+import { MAX_EXTENSION_NAME_LENGTH } from '@/backend/constants/extension-policy'
 
 /** 입력 정규화 + 검증만 수행. maxCustomExtensions는 DB에서 내려준 값. */
 export function validateCustomExtension(

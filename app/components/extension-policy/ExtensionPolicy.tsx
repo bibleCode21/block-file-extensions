@@ -6,9 +6,9 @@ import { SectionRow } from './SectionRow'
 import { FixedExtensionList } from './FixedExtensionList'
 import { CustomExtensionList } from './CustomExtensionList'
 import { validateCustomExtension } from './validation'
-import { toFixedExtensions } from './api'
+import { toFixedExtensions } from './mapper'
 import type { ExtensionPolicyData } from './types'
-import { MAX_EXTENSION_NAME_LENGTH } from '@/backend/controllers/extension-policy-controller'
+import { MAX_EXTENSION_NAME_LENGTH } from '@/backend/constants/extension-policy'
 
 export default function ExtensionPolicy() {
     const [fixedExtensions, setFixedExtensions] = useState<FixedExtension[]>([])
