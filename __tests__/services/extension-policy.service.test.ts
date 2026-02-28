@@ -1,6 +1,6 @@
 import { ExtensionPolicyService } from '@/backend/services/extension-policy.service'
 import type { ExtensionPolicyRepository, RuleSetWithExtensions } from '@/backend/repositories/extension-policy.repository'
-import { MAX_EXTENSION_NAME_LENGTH } from '@/backend/constants/extension-policy'
+import { NotFoundError, ValidationError, ConflictError } from '@/backend/errors'
 
 jest.mock('@/lib/redis', () => ({
     redis: {
@@ -21,6 +21,7 @@ function createMockRepository(): jest.Mocked<ExtensionPolicyRepository> {
         countCustomExtensions: jest.fn(),
         addExtension: jest.fn(),
         removeExtension: jest.fn(),
+        updateSettings: jest.fn(),
     } as unknown as jest.Mocked<ExtensionPolicyRepository>
 }
 
@@ -31,6 +32,7 @@ function createRuleSet(overrides?: Partial<RuleSetWithExtensions>): RuleSetWithE
         name: '기본 정책',
         isDefault: true,
         maxCustomExtensions: 200,
+        maxExtensionNameLength: 20,
         createdAt: new Date(),
         updatedAt: new Date(),
         extensions: [
@@ -89,16 +91,16 @@ describe('ExtensionPolicyService', () => {
     })
 
     describe('updateFixedExtensionEnabled', () => {
-        it('확장자가 없으면 에러', async () => {
+        it('확장자가 없으면 NotFoundError', async () => {
             repo.findExtension.mockResolvedValue(null)
             await expect(service.updateFixedExtensionEnabled('default', 'xyz', true))
-                .rejects.toThrow('없습니다')
+                .rejects.toThrow(NotFoundError)
         })
 
-        it('커스텀 확장자이면 에러', async () => {
+        it('커스텀 확장자이면 ValidationError', async () => {
             repo.findExtension.mockResolvedValue({ isFixed: false, ruleSetId: 'rs-1' })
             await expect(service.updateFixedExtensionEnabled('default', 'custom1', true))
-                .rejects.toThrow('고정 확장자만 토글')
+                .rejects.toThrow(ValidationError)
         })
 
         it('고정 확장자이면 정상 업데이트', async () => {
@@ -110,35 +112,44 @@ describe('ExtensionPolicyService', () => {
     })
 
     describe('addCustomExtension', () => {
-        it('이름이 너무 길면 에러', async () => {
-            const longName = 'a'.repeat(MAX_EXTENSION_NAME_LENGTH + 1)
+        it('이름이 maxExtensionNameLength 초과면 ValidationError', async () => {
+            repo.findByKey.mockResolvedValue(createRuleSet({ maxExtensionNameLength: 10 }))
+            const longName = 'a'.repeat(11)
             await expect(service.addCustomExtension('default', longName))
-                .rejects.toThrow('이하여야 합니다')
+                .rejects.toThrow(ValidationError)
         })
 
-        it('정책이 없으면 에러', async () => {
+        it('이름이 maxExtensionNameLength 이내면 통과', async () => {
+            repo.findByKey.mockResolvedValue(createRuleSet({ maxExtensionNameLength: 10 }))
+            repo.countCustomExtensions.mockResolvedValue(0)
+            repo.addExtension.mockResolvedValue(undefined)
+            await service.addCustomExtension('default', 'a'.repeat(10))
+            expect(repo.addExtension).toHaveBeenCalled()
+        })
+
+        it('정책이 없으면 NotFoundError', async () => {
             repo.findByKey.mockResolvedValue(null)
             await expect(service.addCustomExtension('default', 'newext'))
-                .rejects.toThrow('정책이 없습니다')
+                .rejects.toThrow(NotFoundError)
         })
 
-        it('고정 확장자와 이름이 겹치면 에러', async () => {
+        it('고정 확장자와 이름이 겹치면 ConflictError', async () => {
             repo.findByKey.mockResolvedValue(createRuleSet())
             await expect(service.addCustomExtension('default', 'exe'))
-                .rejects.toThrow('고정 확장자에 이미 포함')
+                .rejects.toThrow(ConflictError)
         })
 
-        it('커스텀 확장자와 이름이 겹치면 에러', async () => {
+        it('커스텀 확장자와 이름이 겹치면 ConflictError', async () => {
             repo.findByKey.mockResolvedValue(createRuleSet())
             await expect(service.addCustomExtension('default', 'custom1'))
-                .rejects.toThrow('이미 등록된 확장자')
+                .rejects.toThrow(ConflictError)
         })
 
-        it('최대 개수 초과 시 에러', async () => {
+        it('최대 개수 초과 시 ValidationError', async () => {
             repo.findByKey.mockResolvedValue(createRuleSet({ maxCustomExtensions: 1 }))
             repo.countCustomExtensions.mockResolvedValue(1)
             await expect(service.addCustomExtension('default', 'newext'))
-                .rejects.toThrow('최대')
+                .rejects.toThrow(ValidationError)
         })
 
         it('커스텀 확장자가 199개일 때 200번째 추가 성공 (경계값 이내)', async () => {
@@ -149,18 +160,18 @@ describe('ExtensionPolicyService', () => {
             expect(repo.addExtension).toHaveBeenCalledWith('rs-1', 'ext200', false, true)
         })
 
-        it('커스텀 확장자가 200개일 때 추가 성공 (maxCustomExtensions=200, count=200이면 실패)', async () => {
+        it('커스텀 확장자가 200개일 때 ValidationError (maxCustomExtensions=200, count=200이면 실패)', async () => {
             repo.findByKey.mockResolvedValue(createRuleSet({ maxCustomExtensions: 200 }))
             repo.countCustomExtensions.mockResolvedValue(200)
             await expect(service.addCustomExtension('default', 'ext201'))
-                .rejects.toThrow('커스텀 확장자는 최대 200개까지 등록할 수 있습니다.')
+                .rejects.toThrow(ValidationError)
         })
 
-        it('커스텀 확장자가 201개 상황은 이미 200개에서 막혀 도달 불가', async () => {
+        it('커스텀 확장자가 201개 상황도 ValidationError (이미 200개에서 막혀 도달 불가)', async () => {
             repo.findByKey.mockResolvedValue(createRuleSet({ maxCustomExtensions: 200 }))
             repo.countCustomExtensions.mockResolvedValue(201)
             await expect(service.addCustomExtension('default', 'ext202'))
-                .rejects.toThrow('커스텀 확장자는 최대 200개까지 등록할 수 있습니다.')
+                .rejects.toThrow(ValidationError)
         })
 
         it('정상 추가', async () => {
@@ -173,16 +184,16 @@ describe('ExtensionPolicyService', () => {
     })
 
     describe('removeCustomExtension', () => {
-        it('확장자가 없으면 에러', async () => {
+        it('확장자가 없으면 NotFoundError', async () => {
             repo.findExtension.mockResolvedValue(null)
             await expect(service.removeCustomExtension('default', 'xyz'))
-                .rejects.toThrow('찾을 수 없습니다')
+                .rejects.toThrow(NotFoundError)
         })
 
-        it('고정 확장자이면 에러', async () => {
+        it('고정 확장자이면 ValidationError', async () => {
             repo.findExtension.mockResolvedValue({ isFixed: true, ruleSetId: 'rs-1' })
             await expect(service.removeCustomExtension('default', 'exe'))
-                .rejects.toThrow('고정 확장자는 삭제할 수 없습니다')
+                .rejects.toThrow(ValidationError)
         })
 
         it('커스텀 확장자이면 정상 삭제', async () => {
@@ -190,6 +201,63 @@ describe('ExtensionPolicyService', () => {
             repo.removeExtension.mockResolvedValue(undefined)
             await service.removeCustomExtension('default', 'custom1')
             expect(repo.removeExtension).toHaveBeenCalledWith('rs-1', 'custom1')
+        })
+    })
+
+    describe('updatePolicySettings', () => {
+        it('정책이 없으면 NotFoundError', async () => {
+            repo.findByKey.mockResolvedValue(null)
+            await expect(service.updatePolicySettings('default', { maxCustomExtensions: 100 }))
+                .rejects.toThrow(NotFoundError)
+        })
+
+        it('maxCustomExtensions가 음수이면 ValidationError', async () => {
+            repo.findByKey.mockResolvedValue(createRuleSet())
+            await expect(service.updatePolicySettings('default', { maxCustomExtensions: -1 }))
+                .rejects.toThrow(ValidationError)
+        })
+
+        it('maxCustomExtensions가 소수이면 ValidationError', async () => {
+            repo.findByKey.mockResolvedValue(createRuleSet())
+            await expect(service.updatePolicySettings('default', { maxCustomExtensions: 1.5 }))
+                .rejects.toThrow(ValidationError)
+        })
+
+        it('maxExtensionNameLength가 0이면 ValidationError', async () => {
+            repo.findByKey.mockResolvedValue(createRuleSet())
+            await expect(service.updatePolicySettings('default', { maxExtensionNameLength: 0 }))
+                .rejects.toThrow(ValidationError)
+        })
+
+        it('maxExtensionNameLength가 소수이면 ValidationError', async () => {
+            repo.findByKey.mockResolvedValue(createRuleSet())
+            await expect(service.updatePolicySettings('default', { maxExtensionNameLength: 2.5 }))
+                .rejects.toThrow(ValidationError)
+        })
+
+        it('정상적인 설정 변경', async () => {
+            repo.findByKey.mockResolvedValue(createRuleSet())
+            const updated = createRuleSet({ maxCustomExtensions: 300, maxExtensionNameLength: 50 })
+            repo.updateSettings.mockResolvedValue(updated)
+            const result = await service.updatePolicySettings('default', {
+                maxCustomExtensions: 300,
+                maxExtensionNameLength: 50,
+            })
+            expect(repo.updateSettings).toHaveBeenCalledWith('default', {
+                maxCustomExtensions: 300,
+                maxExtensionNameLength: 50,
+            })
+            expect(result.maxCustomExtensions).toBe(300)
+            expect(result.maxExtensionNameLength).toBe(50)
+        })
+
+        it('하나만 변경해도 정상 동작', async () => {
+            repo.findByKey.mockResolvedValue(createRuleSet())
+            const updated = createRuleSet({ maxExtensionNameLength: 100 })
+            repo.updateSettings.mockResolvedValue(updated)
+            const result = await service.updatePolicySettings('default', { maxExtensionNameLength: 100 })
+            expect(repo.updateSettings).toHaveBeenCalledWith('default', { maxExtensionNameLength: 100 })
+            expect(result.maxExtensionNameLength).toBe(100)
         })
     })
 })

@@ -85,4 +85,15 @@ export class ExtensionPolicyRepository {
             },
         })
     }
+
+    async updateSettings(
+        key: string,
+        settings: { maxCustomExtensions?: number; maxExtensionNameLength?: number },
+    ): Promise<RuleSetWithExtensions> {
+        return prisma.extensionRuleSet.update({
+            where: { key },
+            data: settings,
+            include: { extensions: { orderBy: { extensionName: 'asc' } } },
+        })
+    }
 }

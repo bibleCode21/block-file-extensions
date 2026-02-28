@@ -1,12 +1,12 @@
 import type { FixedExtension } from './types'
-import { MAX_EXTENSION_NAME_LENGTH } from '@/backend/constants/extension-policy'
 
-/** 입력 정규화 + 검증만 수행. maxCustomExtensions는 DB에서 내려준 값. */
+/** 입력 정규화 + 검증만 수행. maxCustomExtensions, maxExtensionNameLength는 DB에서 내려준 값. */
 export function validateCustomExtension(
     rawInput: string,
     fixedExtensions: FixedExtension[],
     customExtensions: string[],
-    maxCustomExtensions: number
+    maxCustomExtensions: number,
+    maxExtensionNameLength: number,
 ): { success: true; value: string } | { success: false; error: string } {
     let value = rawInput.trim().toLowerCase()
 
@@ -14,8 +14,8 @@ export function validateCustomExtension(
 
     if (value.startsWith('.')) value = value.slice(1)
 
-    if (value.length > MAX_EXTENSION_NAME_LENGTH) {
-        return { success: false, error: `확장자는 ${MAX_EXTENSION_NAME_LENGTH}자 이하여야 합니다.` }
+    if (value.length > maxExtensionNameLength) {
+        return { success: false, error: `확장자는 ${maxExtensionNameLength}자 이하여야 합니다.` }
     }
 
     if (!/^[a-z0-9]+$/.test(value)) {

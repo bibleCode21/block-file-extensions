@@ -98,6 +98,45 @@ export const openApiSpec = {
                 },
             },
         },
+        '/api/extension-policy/settings': {
+            patch: {
+                summary: '정책 설정 변경',
+                description: '커스텀 확장자 최대 개수(maxCustomExtensions) 및 확장자 이름 최대 길이(maxExtensionNameLength)를 변경합니다.',
+                operationId: 'updatePolicySettings',
+                tags: ['Extension Policy'],
+                requestBody: {
+                    required: true,
+                    content: {
+                        'application/json': {
+                            schema: {
+                                type: 'object',
+                                properties: {
+                                    maxCustomExtensions: { type: 'integer', example: 300, description: '커스텀 확장자 최대 개수 (0 이상)' },
+                                    maxExtensionNameLength: { type: 'integer', example: 50, description: '확장자 이름 최대 길이 (1 이상)' },
+                                },
+                            },
+                        },
+                    },
+                },
+                responses: {
+                    '200': {
+                        description: '변경 성공 (변경된 정책 반환)',
+                        content: {
+                            'application/json': {
+                                schema: {
+                                    type: 'object',
+                                    properties: {
+                                        data: { $ref: '#/components/schemas/PolicyResponse' },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                    '400': { description: '잘못된 요청 (값 누락, 타입 오류, 범위 오류 등)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+                    '404': { description: '정책이 없음 (init 필요)', content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } } },
+                },
+            },
+        },
         '/api/extension-policy/init': {
             post: {
                 summary: '정책 초기화',
@@ -131,6 +170,7 @@ export const openApiSpec = {
                     key: { type: 'string', example: 'default' },
                     name: { type: 'string', example: '기본 정책' },
                     maxCustomExtensions: { type: 'integer', example: 200 },
+                    maxExtensionNameLength: { type: 'integer', example: 20 },
                     fixedExtensions: {
                         type: 'array',
                         items: {

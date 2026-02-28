@@ -5,6 +5,7 @@ export type PolicyResponse = {
     key: string
     name: string
     maxCustomExtensions: number
+    maxExtensionNameLength: number
     fixedExtensions: Array<{ name: string; enabled: boolean }>
     customExtensions: string[]
 }
@@ -23,6 +24,7 @@ export function toPolicyResponse(ruleSet: RuleSetWithExtensions): PolicyResponse
         key: ruleSet.key,
         name: ruleSet.name,
         maxCustomExtensions: ruleSet.maxCustomExtensions,
+        maxExtensionNameLength: ruleSet.maxExtensionNameLength,
         fixedExtensions,
         customExtensions,
     }

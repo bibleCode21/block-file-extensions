@@ -8,12 +8,12 @@ import { CustomExtensionList } from './CustomExtensionList'
 import { validateCustomExtension } from './validation'
 import { toFixedExtensions } from './mapper'
 import type { ExtensionPolicyData } from './types'
-import { MAX_EXTENSION_NAME_LENGTH } from '@/backend/constants/extension-policy'
 
 export default function ExtensionPolicy() {
     const [fixedExtensions, setFixedExtensions] = useState<FixedExtension[]>([])
     const [customExtensions, setCustomExtensions] = useState<string[]>([])
     const [maxCustomExtensions, setMaxCustomExtensions] = useState(0)
+    const [maxExtensionNameLength, setMaxExtensionNameLength] = useState(20)
     const [inputExt, setInputExt] = useState('')
     const [addError, setAddError] = useState<string | null>(null)
     const [loadState, setLoadState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
@@ -29,9 +29,9 @@ export default function ExtensionPolicy() {
                     setFixedExtensions(toFixedExtensions(data.fixedExtensions))
                     setCustomExtensions(Array.isArray(data.customExtensions) ? data.customExtensions : [])
                     setMaxCustomExtensions(data.maxCustomExtensions ?? 200)
+                    setMaxExtensionNameLength(data.maxExtensionNameLength ?? 20)
                     return
                 }
-                // 기본 정책이 없으면 init 호출 후 응답으로 상태 설정
                 return fetch('/api/extension-policy/init', { method: 'POST' })
                     .then(r => r.json())
                     .then((initJson: { data?: ExtensionPolicyData | null }) => {
@@ -41,6 +41,7 @@ export default function ExtensionPolicy() {
                         setFixedExtensions(toFixedExtensions(initData.fixedExtensions))
                         setCustomExtensions(Array.isArray(initData.customExtensions) ? initData.customExtensions : [])
                         setMaxCustomExtensions(initData.maxCustomExtensions ?? 200)
+                        setMaxExtensionNameLength(initData.maxExtensionNameLength ?? 20)
                     })
             })
             .catch(() => setLoadState('error'))
@@ -79,7 +80,8 @@ export default function ExtensionPolicy() {
             inputExt,
             fixedExtensions,
             customExtensions,
-            maxCustomExtensions
+            maxCustomExtensions,
+            maxExtensionNameLength,
         )
 
         if (!result.success) {
@@ -166,12 +168,12 @@ export default function ExtensionPolicy() {
                                 value={inputExt}
                                 onChange={e => {
                                     const v = e.target.value
-                                    if (v.length <= MAX_EXTENSION_NAME_LENGTH) setInputExt(v)
+                                    if (v.length <= maxExtensionNameLength) setInputExt(v)
                                     setAddError(null)
                                 }}
                                 onKeyDown={e => e.key === 'Enter' && addExtension()}
-                                placeholder={`확장자 입력 (최대 ${MAX_EXTENSION_NAME_LENGTH}자)`}
-                                maxLength={MAX_EXTENSION_NAME_LENGTH}
+                                placeholder={`확장자 입력 (최대 ${maxExtensionNameLength}자)`}
+                                maxLength={maxExtensionNameLength}
                                 className="border rounded-lg px-3 py-1 flex-1"
                             />
 
