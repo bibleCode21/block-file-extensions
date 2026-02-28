@@ -25,6 +25,23 @@ function createMockRepository(): jest.Mocked<ExtensionPolicyRepository> {
     } as unknown as jest.Mocked<ExtensionPolicyRepository>
 }
 
+const baseFixedExtensions = [
+    { id: 'ext-1', ruleSetId: 'rs-1', extensionName: 'exe', isFixed: true, enabled: false, createdAt: new Date(), updatedAt: new Date() },
+    { id: 'ext-2', ruleSetId: 'rs-1', extensionName: 'bat', isFixed: true, enabled: true, createdAt: new Date(), updatedAt: new Date() },
+]
+
+function makeCustomExtensions(count: number) {
+    return Array.from({ length: count }, (_, i) => ({
+        id: `custom-${i}`,
+        ruleSetId: 'rs-1',
+        extensionName: `custom${i}`,
+        isFixed: false,
+        enabled: true,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+    }))
+}
+
 function createRuleSet(overrides?: Partial<RuleSetWithExtensions>): RuleSetWithExtensions {
     return {
         id: 'rs-1',
@@ -36,8 +53,7 @@ function createRuleSet(overrides?: Partial<RuleSetWithExtensions>): RuleSetWithE
         createdAt: new Date(),
         updatedAt: new Date(),
         extensions: [
-            { id: 'ext-1', ruleSetId: 'rs-1', extensionName: 'exe', isFixed: true, enabled: false, createdAt: new Date(), updatedAt: new Date() },
-            { id: 'ext-2', ruleSetId: 'rs-1', extensionName: 'bat', isFixed: true, enabled: true, createdAt: new Date(), updatedAt: new Date() },
+            ...baseFixedExtensions,
             { id: 'ext-3', ruleSetId: 'rs-1', extensionName: 'custom1', isFixed: false, enabled: true, createdAt: new Date(), updatedAt: new Date() },
         ],
         ...overrides,
@@ -121,7 +137,6 @@ describe('ExtensionPolicyService', () => {
 
         it('이름이 maxExtensionNameLength 이내면 통과', async () => {
             repo.findByKey.mockResolvedValue(createRuleSet({ maxExtensionNameLength: 10 }))
-            repo.countCustomExtensions.mockResolvedValue(0)
             repo.addExtension.mockResolvedValue(undefined)
             await service.addCustomExtension('default', 'a'.repeat(10))
             expect(repo.addExtension).toHaveBeenCalled()
@@ -153,30 +168,35 @@ describe('ExtensionPolicyService', () => {
         })
 
         it('커스텀 확장자가 199개일 때 200번째 추가 성공 (경계값 이내)', async () => {
-            repo.findByKey.mockResolvedValue(createRuleSet({ maxCustomExtensions: 200 }))
-            repo.countCustomExtensions.mockResolvedValue(199)
+            repo.findByKey.mockResolvedValue(createRuleSet({
+                maxCustomExtensions: 200,
+                extensions: [...baseFixedExtensions, ...makeCustomExtensions(199)],
+            }))
             repo.addExtension.mockResolvedValue(undefined)
             await service.addCustomExtension('default', 'ext200')
             expect(repo.addExtension).toHaveBeenCalledWith('rs-1', 'ext200', false, true)
         })
 
         it('커스텀 확장자가 200개일 때 ValidationError (maxCustomExtensions=200, count=200이면 실패)', async () => {
-            repo.findByKey.mockResolvedValue(createRuleSet({ maxCustomExtensions: 200 }))
-            repo.countCustomExtensions.mockResolvedValue(200)
+            repo.findByKey.mockResolvedValue(createRuleSet({
+                maxCustomExtensions: 200,
+                extensions: [...baseFixedExtensions, ...makeCustomExtensions(200)],
+            }))
             await expect(service.addCustomExtension('default', 'ext201'))
                 .rejects.toThrow(ValidationError)
         })
 
         it('커스텀 확장자가 201개 상황도 ValidationError (이미 200개에서 막혀 도달 불가)', async () => {
-            repo.findByKey.mockResolvedValue(createRuleSet({ maxCustomExtensions: 200 }))
-            repo.countCustomExtensions.mockResolvedValue(201)
+            repo.findByKey.mockResolvedValue(createRuleSet({
+                maxCustomExtensions: 200,
+                extensions: [...baseFixedExtensions, ...makeCustomExtensions(201)],
+            }))
             await expect(service.addCustomExtension('default', 'ext202'))
                 .rejects.toThrow(ValidationError)
         })
 
         it('정상 추가', async () => {
             repo.findByKey.mockResolvedValue(createRuleSet())
-            repo.countCustomExtensions.mockResolvedValue(0)
             repo.addExtension.mockResolvedValue(undefined)
             await service.addCustomExtension('default', 'newext')
             expect(repo.addExtension).toHaveBeenCalledWith('rs-1', 'newext', false, true)

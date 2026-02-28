@@ -12,8 +12,7 @@ export class ExtensionPolicyService implements IExtensionPolicyService {
     constructor(private readonly repository: ExtensionPolicyRepository) { }
 
     async getPolicy(ruleSetKey: string): Promise<PolicyResponse | null> {
-        const version = await this.getOrInitCacheVersion(ruleSetKey)
-        const cKey = this.cacheKey(ruleSetKey, version)
+        const cKey = this.cacheKey(ruleSetKey)
         const cached = await redis.get<PolicyResponse>(cKey)
         if (cached) return cached
 
@@ -75,7 +74,7 @@ export class ExtensionPolicyService implements IExtensionPolicyService {
             throw new ConflictError('이미 등록된 확장자입니다.')
         }
 
-        const customCount = await this.repository.countCustomExtensions(ruleSet.id)
+        const customCount = ruleSet.extensions.filter(e => !e.isFixed).length
         const maxCustom = ruleSet.maxCustomExtensions
         if (customCount >= maxCustom) {
             throw new ValidationError(`커스텀 확장자는 최대 ${maxCustom}개까지 등록할 수 있습니다.`)
@@ -120,37 +119,12 @@ export class ExtensionPolicyService implements IExtensionPolicyService {
         return toPolicyResponse(updated)
     }
 
-    /**
-     * 정책 변경 시 Redis 캐시 무효화(버전 증가 + 기존 캐시 키 삭제).
-     * - rawVersion: Redis는 환경에 따라 number 또는 string으로 반환할 수 있어 공통 타입으로 받음.
-     * - version: 삭제할 캐시 키를 만들 때만 사용. 키가 없었으면 undefined → 삭제 생략(없는 키 del 불필요).
-     */
+    /** 정책 변경 시 Redis 캐시 무효화(단일 키 삭제 → 다음 getPolicy에서 DB 조회 후 재캐시) */
     private async invalidatePolicyCache(ruleSetKey: string): Promise<void> {
-        const vKey = this.versionKey(ruleSetKey)
-        const rawVersion = await redis.get<number | string>(vKey)
-        const version = rawVersion != null ? Number(rawVersion) : undefined
-        if (version != null && !Number.isNaN(version)) {
-            await redis.del(this.cacheKey(ruleSetKey, version))
-        }
-        await redis.incr(vKey)
+        await redis.del(this.cacheKey(ruleSetKey))
     }
 
-    /** 현재 캐시 버전을 반환. 버전 키가 없으면 1로 초기화 후 반환. Redis 반환값을 number로 정규화. */
-    private async getOrInitCacheVersion(ruleSetKey: string): Promise<number> {
-        const vKey = this.versionKey(ruleSetKey)
-        const rawVersion = await redis.get<number | string>(vKey)
-        const version = rawVersion != null ? Number(rawVersion) || 1 : 1
-        if (rawVersion == null) {
-            await redis.set(vKey, version)
-        }
-        return version
-    }
-
-    private versionKey(ruleSetKey: string): string {
-        return `extension-rule-set:${ruleSetKey}:version`
-    }
-
-    private cacheKey(ruleSetKey: string, version: number): string {
-        return `extension-rule-set:${ruleSetKey}:v${version}`
+    private cacheKey(ruleSetKey: string): string {
+        return `extension-rule-set:${ruleSetKey}`
     }
 }
