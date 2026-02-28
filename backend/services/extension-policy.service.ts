@@ -43,14 +43,13 @@ export class ExtensionPolicyService implements IExtensionPolicyService {
     }
 
     async updateFixedExtensionEnabled(ruleSetKey: string, name: string, enabled: boolean): Promise<void> {
-        const ext = await this.repository.findExtension(ruleSetKey, name)
+        const ext = await this.repository.findAndUpdateFixedExtensionEnabled(ruleSetKey, name, enabled)
         if (!ext) {
             throw new NotFoundError(`정책 '${ruleSetKey}'에 확장자 '${name}'이(가) 없습니다.`)
         }
         if (!ext.isFixed) {
             throw new ValidationError('고정 확장자만 토글할 수 있습니다.')
         }
-        await this.repository.updateExtensionEnabled(ext.ruleSetId, name, enabled)
         await this.invalidatePolicyCache(ruleSetKey)
     }
 

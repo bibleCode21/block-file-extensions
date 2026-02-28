@@ -53,6 +53,32 @@ export class ExtensionPolicyRepository {
         })
     }
 
+    /** find + update(고정 확장자만)를 한 트랜잭션으로 처리 → DB 왕복 1회 */
+    async findAndUpdateFixedExtensionEnabled(
+        ruleSetKey: string,
+        extensionName: string,
+        enabled: boolean,
+    ): Promise<ExtensionInfo | null> {
+        return prisma.$transaction(async tx => {
+            const ext = await tx.extension.findFirst({
+                where: {
+                    extensionName,
+                    ruleSet: { key: ruleSetKey },
+                },
+                select: { isFixed: true, ruleSetId: true },
+            })
+            if (!ext) return null
+            if (!ext.isFixed) return ext
+            await tx.extension.update({
+                where: {
+                    ruleSetId_extensionName: { ruleSetId: ext.ruleSetId, extensionName },
+                },
+                data: { enabled },
+            })
+            return ext
+        })
+    }
+
     async getMaxCustomExtensions(key: string): Promise<number> {
         const ruleSet = await prisma.extensionRuleSet.findUnique({
             where: { key },

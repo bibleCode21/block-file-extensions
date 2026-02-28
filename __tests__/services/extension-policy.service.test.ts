@@ -17,6 +17,7 @@ function createMockRepository(): jest.Mocked<ExtensionPolicyRepository> {
         createWithExtensions: jest.fn(),
         findExtension: jest.fn(),
         updateExtensionEnabled: jest.fn(),
+        findAndUpdateFixedExtensionEnabled: jest.fn(),
         getMaxCustomExtensions: jest.fn(),
         countCustomExtensions: jest.fn(),
         addExtension: jest.fn(),
@@ -108,22 +109,21 @@ describe('ExtensionPolicyService', () => {
 
     describe('updateFixedExtensionEnabled', () => {
         it('확장자가 없으면 NotFoundError', async () => {
-            repo.findExtension.mockResolvedValue(null)
+            repo.findAndUpdateFixedExtensionEnabled.mockResolvedValue(null)
             await expect(service.updateFixedExtensionEnabled('default', 'xyz', true))
                 .rejects.toThrow(NotFoundError)
         })
 
         it('커스텀 확장자이면 ValidationError', async () => {
-            repo.findExtension.mockResolvedValue({ isFixed: false, ruleSetId: 'rs-1' })
+            repo.findAndUpdateFixedExtensionEnabled.mockResolvedValue({ isFixed: false, ruleSetId: 'rs-1' })
             await expect(service.updateFixedExtensionEnabled('default', 'custom1', true))
                 .rejects.toThrow(ValidationError)
         })
 
         it('고정 확장자이면 정상 업데이트', async () => {
-            repo.findExtension.mockResolvedValue({ isFixed: true, ruleSetId: 'rs-1' })
-            repo.updateExtensionEnabled.mockResolvedValue(undefined)
+            repo.findAndUpdateFixedExtensionEnabled.mockResolvedValue({ isFixed: true, ruleSetId: 'rs-1' })
             await service.updateFixedExtensionEnabled('default', 'exe', true)
-            expect(repo.updateExtensionEnabled).toHaveBeenCalledWith('rs-1', 'exe', true)
+            expect(repo.findAndUpdateFixedExtensionEnabled).toHaveBeenCalledWith('default', 'exe', true)
         })
     })
 
