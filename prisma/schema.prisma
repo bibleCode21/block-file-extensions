@@ -12,7 +12,7 @@ model ExtensionRuleSet {
   name                String
   description         String?
   isDefault           Boolean @default(false) @map("is_default")
-  maxCustomExtensions Int     @default(200) @map("max_custom_extensions")
+  maxCustomExtensions Int @default(200) @map("max_custom_extensions")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -26,7 +26,7 @@ model Extension {
   id        String @id @default(uuid()) @db.Uuid
   ruleSetId String @map("rule_set_id") @db.Uuid
 
-  extensionName String  @map("extension_name")
+  extensionName String  @map("extension_name") @db.VarChar(20)
   isFixed       Boolean @map("is_fixed")
   enabled       Boolean @default(true)
 

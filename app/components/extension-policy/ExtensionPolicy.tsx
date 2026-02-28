@@ -8,6 +8,7 @@ import { CustomExtensionList } from './CustomExtensionList'
 import { validateCustomExtension } from './validation'
 import { toFixedExtensions } from './api'
 import type { ExtensionPolicyData } from './types'
+import { MAX_EXTENSION_NAME_LENGTH } from '@/lib/extension-policy-api'
 
 export default function ExtensionPolicy() {
     const [fixedExtensions, setFixedExtensions] = useState<FixedExtension[]>([])
@@ -74,7 +75,12 @@ export default function ExtensionPolicy() {
     }
 
     const addExtension = () => {
-        const result = validateCustomExtension(inputExt, fixedExtensions, customExtensions, maxCustomExtensions)
+        const result = validateCustomExtension(
+            inputExt,
+            fixedExtensions,
+            customExtensions,
+            maxCustomExtensions
+        )
 
         if (!result.success) {
             setAddError(result.error)
@@ -137,11 +143,13 @@ export default function ExtensionPolicy() {
                             <input
                                 value={inputExt}
                                 onChange={e => {
-                                    setInputExt(e.target.value)
+                                    const v = e.target.value
+                                    if (v.length <= MAX_EXTENSION_NAME_LENGTH) setInputExt(v)
                                     setAddError(null)
                                 }}
                                 onKeyDown={e => e.key === 'Enter' && addExtension()}
-                                placeholder="확장자 입력"
+                                placeholder={`확장자 입력 (최대 ${MAX_EXTENSION_NAME_LENGTH}자)`}
+                                maxLength={MAX_EXTENSION_NAME_LENGTH}
                                 className="border rounded-lg px-3 py-1 flex-1"
                             />
 

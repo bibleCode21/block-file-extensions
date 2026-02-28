@@ -1,6 +1,7 @@
 import type { FixedExtension } from './types'
+import { MAX_EXTENSION_NAME_LENGTH } from '@/lib/extension-policy-api'
 
-/** 입력 정규화 + 검증만 수행. 추가(상태 변경)는 호출부에서 처리. maxCustomExtensions는 DB에서 내려준 값. */
+/** 입력 정규화 + 검증만 수행. maxCustomExtensions는 DB에서 내려준 값. */
 export function validateCustomExtension(
     rawInput: string,
     fixedExtensions: FixedExtension[],
@@ -12,6 +13,10 @@ export function validateCustomExtension(
     if (!value) return { success: false, error: '확장자를 입력해 주세요.' }
 
     if (value.startsWith('.')) value = value.slice(1)
+
+    if (value.length > MAX_EXTENSION_NAME_LENGTH) {
+        return { success: false, error: `확장자 이름은 ${MAX_EXTENSION_NAME_LENGTH}자 이하여야 합니다.` }
+    }
 
     if (!/^[a-z0-9]+$/.test(value)) {
         return { success: false, error: '영문 소문자와 숫자만 입력할 수 있습니다.' }

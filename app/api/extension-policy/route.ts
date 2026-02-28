@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import {
     DEFAULT_RULESET_KEY,
+    MAX_EXTENSION_NAME_LENGTH,
     toPolicyResponse,
 } from '@/lib/extension-policy-api'
 
@@ -125,12 +126,18 @@ export async function POST(req: Request) {
 
     const existingRuleSet = await prisma.extensionRuleSet.findUnique({
         where: { key: DEFAULT_RULESET_KEY },
-        select: { maxCustomExtensions: true },
     })
     const maxCustom = existingRuleSet?.maxCustomExtensions ?? 200
     if (customNames.length > maxCustom) {
         return NextResponse.json(
             { error: `커스텀 확장자는 최대 ${maxCustom}개까지 등록할 수 있습니다.` },
+            { status: 400 }
+        )
+    }
+    const tooLong = customNames.find(name => name.length > MAX_EXTENSION_NAME_LENGTH)
+    if (tooLong) {
+        return NextResponse.json(
+            { error: `확장자 이름은 ${MAX_EXTENSION_NAME_LENGTH}자 이하여야 합니다. (예: ${tooLong})` },
             { status: 400 }
         )
     }
