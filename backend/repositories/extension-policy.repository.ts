@@ -1,6 +1,9 @@
 import 'server-only'
 import { prisma } from '@/lib/prisma'
+import type { PrismaClient } from '@prisma/client'
 import type { ExtensionRuleSet, Extension } from '@prisma/client'
+
+type TxClient = Parameters<Parameters<PrismaClient['$transaction']>[0]>[0]
 
 export type RuleSetWithExtensions = ExtensionRuleSet & { extensions: Extension[] }
 
@@ -10,6 +13,10 @@ export type ExtensionInfo = {
 }
 
 export class ExtensionPolicyRepository {
+    async transaction<T>(fn: (tx: TxClient) => Promise<T>): Promise<T> {
+        return prisma.$transaction(fn)
+    }
+
     async findByKey(key: string): Promise<RuleSetWithExtensions | null> {
         return prisma.extensionRuleSet.findUnique({
             where: { key },
@@ -34,8 +41,9 @@ export class ExtensionPolicyRepository {
         })
     }
 
-    async findExtension(ruleSetKey: string, extensionName: string): Promise<ExtensionInfo | null> {
-        return prisma.extension.findFirst({
+    async findExtension(ruleSetKey: string, extensionName: string, tx?: TxClient): Promise<ExtensionInfo | null> {
+        const db = tx ?? prisma
+        return db.extension.findFirst({
             where: {
                 extensionName,
                 ruleSet: { key: ruleSetKey },
@@ -44,38 +52,13 @@ export class ExtensionPolicyRepository {
         })
     }
 
-    async updateExtensionEnabled(ruleSetId: string, extensionName: string, enabled: boolean): Promise<void> {
-        await prisma.extension.update({
+    async updateExtensionEnabled(ruleSetId: string, extensionName: string, enabled: boolean, tx?: TxClient): Promise<void> {
+        const db = tx ?? prisma
+        await db.extension.update({
             where: {
                 ruleSetId_extensionName: { ruleSetId, extensionName },
             },
             data: { enabled },
-        })
-    }
-
-    /** find + update(고정 확장자만)를 한 트랜잭션으로 처리 → DB 왕복 1회 */
-    async findAndUpdateFixedExtensionEnabled(
-        ruleSetKey: string,
-        extensionName: string,
-        enabled: boolean,
-    ): Promise<ExtensionInfo | null> {
-        return prisma.$transaction(async tx => {
-            const ext = await tx.extension.findFirst({
-                where: {
-                    extensionName,
-                    ruleSet: { key: ruleSetKey },
-                },
-                select: { isFixed: true, ruleSetId: true },
-            })
-            if (!ext) return null
-            if (!ext.isFixed) return ext
-            await tx.extension.update({
-                where: {
-                    ruleSetId_extensionName: { ruleSetId: ext.ruleSetId, extensionName },
-                },
-                data: { enabled },
-            })
-            return ext
         })
     }
 
