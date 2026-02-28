@@ -120,12 +120,41 @@ function CustomExtensionList({ values, onRemove }: CustomExtensionListProps) {
     )
 }
 
+// 입력 정규화 + 검증만 수행. 추가(상태 변경)는 호출부에서 처리.
+function validateCustomExtension(
+    rawInput: string,
+    fixedExtensions: FixedExtension[],
+    customExtensions: string[]
+): { success: true; value: string } | { success: false; error: string } {
+    let value = rawInput.trim().toLowerCase()
+
+    if (!value) return { success: false, error: '확장자를 입력해 주세요.' }
+
+    if (value.startsWith('.')) value = value.slice(1)
+
+    if (!/^[a-z0-9]+$/.test(value)) {
+        return { success: false, error: '영문 소문자와 숫자만 입력할 수 있습니다.' }
+    }
+
+    if (fixedExtensions.some(ext => ext.name === value)) {
+        return { success: false, error: '고정 확장자에 이미 포함되어 있습니다.' }
+    }
+    if (customExtensions.includes(value)) {
+        return { success: false, error: '이미 등록된 확장자입니다.' }
+    }
+    if (customExtensions.length >= MAX_CUSTOM_EXTENSIONS) {
+        return { success: false, error: `최대 ${MAX_CUSTOM_EXTENSIONS}개까지 등록할 수 있습니다.` }
+    }
+
+    return { success: true, value }
+}
+
 export default function ExtensionPolicy() {
     const [fixedExtensions, setFixedExtensions] = useState<FixedExtension[]>(DEFAULT_FIXED_EXTENSIONS)
     const [customExtensions, setCustomExtensions] = useState<string[]>([])
     const [inputExt, setInputExt] = useState('')
+    const [addError, setAddError] = useState<string | null>(null)
 
-    // 고정 확장자 on/off 토글
     const toggleFixed = (name: string) => {
         setFixedExtensions(prev =>
             prev.map(ext =>
@@ -136,26 +165,17 @@ export default function ExtensionPolicy() {
         )
     }
 
-    // 커스텀 확장자 추가 (공백/형식/중복/최대 개수 체크 포함)
+    // 검증 후 통과하면 목록에 추가하고 입력/에러 초기화
     const addExtension = () => {
-        let value = inputExt.trim().toLowerCase()
+        const result = validateCustomExtension(inputExt, fixedExtensions, customExtensions)
 
-        if (!value) return
-
-        // ".exe"처럼 점으로 시작하는 입력은 점을 제거
-        if (value.startsWith('.')) {
-            value = value.slice(1)
-        }
-
-        // 영문 소문자/숫자만 허용 (기본적인 형식 제한)
-        if (!/^[a-z0-9]+$/.test(value)) {
+        if (!result.success) {
+            setAddError(result.error)
             return
         }
 
-        if (customExtensions.includes(value)) return
-        if (customExtensions.length >= MAX_CUSTOM_EXTENSIONS) return
-
-        setCustomExtensions(prev => [...prev, value])
+        setAddError(null)
+        setCustomExtensions(prev => [...prev, result.value])
         setInputExt('')
     }
 
@@ -194,7 +214,10 @@ export default function ExtensionPolicy() {
                         <div className="flex gap-2">
                             <input
                                 value={inputExt}
-                                onChange={e => setInputExt(e.target.value)}
+                                onChange={e => {
+                                    setInputExt(e.target.value)
+                                    setAddError(null)
+                                }}
                                 onKeyDown={e => e.key === 'Enter' && addExtension()}
                                 placeholder="확장자 입력"
                                 className="border rounded-lg px-3 py-1 flex-1"
@@ -208,6 +231,12 @@ export default function ExtensionPolicy() {
                                 +추가
                             </button>
                         </div>
+
+                        {addError && (
+                            <p className="text-sm text-red-600" role="alert">
+                                {addError}
+                            </p>
+                        )}
 
                         <CustomExtensionList
                             values={customExtensions}
