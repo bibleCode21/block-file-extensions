@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from 'react'
 import type { FixedExtension } from './types'
-import { DEFAULT_FIXED_EXTENSIONS } from './constants'
 import { SectionRow } from './SectionRow'
 import { FixedExtensionList } from './FixedExtensionList'
 import { CustomExtensionList } from './CustomExtensionList'
@@ -11,8 +10,9 @@ import { toFixedExtensions } from './api'
 import type { ExtensionPolicyData } from './types'
 
 export default function ExtensionPolicy() {
-    const [fixedExtensions, setFixedExtensions] = useState<FixedExtension[]>(DEFAULT_FIXED_EXTENSIONS)
+    const [fixedExtensions, setFixedExtensions] = useState<FixedExtension[]>([])
     const [customExtensions, setCustomExtensions] = useState<string[]>([])
+    const [maxCustomExtensions, setMaxCustomExtensions] = useState(0)
     const [inputExt, setInputExt] = useState('')
     const [addError, setAddError] = useState<string | null>(null)
     const [loadState, setLoadState] = useState<'idle' | 'loading' | 'success' | 'error'>('idle')
@@ -22,11 +22,25 @@ export default function ExtensionPolicy() {
         fetch('/api/extension-policy')
             .then(res => res.json())
             .then((json: { data?: ExtensionPolicyData | null }) => {
-                setLoadState('success')
                 const data = json.data
-                if (!data) return
-                setFixedExtensions(toFixedExtensions(data.fixedExtensions))
-                setCustomExtensions(Array.isArray(data.customExtensions) ? data.customExtensions : [])
+                if (data) {
+                    setLoadState('success')
+                    setFixedExtensions(toFixedExtensions(data.fixedExtensions))
+                    setCustomExtensions(Array.isArray(data.customExtensions) ? data.customExtensions : [])
+                    setMaxCustomExtensions(data.maxCustomExtensions ?? 200)
+                    return
+                }
+                // 기본 정책이 없으면 init 호출 후 응답으로 상태 설정
+                return fetch('/api/extension-policy/init', { method: 'POST' })
+                    .then(r => r.json())
+                    .then((initJson: { data?: ExtensionPolicyData | null }) => {
+                        setLoadState('success')
+                        const initData = initJson.data
+                        if (!initData) return
+                        setFixedExtensions(toFixedExtensions(initData.fixedExtensions))
+                        setCustomExtensions(Array.isArray(initData.customExtensions) ? initData.customExtensions : [])
+                        setMaxCustomExtensions(initData.maxCustomExtensions ?? 200)
+                    })
             })
             .catch(() => setLoadState('error'))
     }, [])
@@ -42,7 +56,7 @@ export default function ExtensionPolicy() {
     }
 
     const addExtension = () => {
-        const result = validateCustomExtension(inputExt, fixedExtensions, customExtensions)
+        const result = validateCustomExtension(inputExt, fixedExtensions, customExtensions, maxCustomExtensions)
 
         if (!result.success) {
             setAddError(result.error)
@@ -130,6 +144,7 @@ export default function ExtensionPolicy() {
 
                         <CustomExtensionList
                             values={customExtensions}
+                            maxCount={maxCustomExtensions}
                             onRemove={removeExtension}
                         />
                     </div>

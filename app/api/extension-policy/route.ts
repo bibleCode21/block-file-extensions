@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-
-const DEFAULT_RULESET_KEY = 'default'
-
-// 최초 호출 시 DB에 생성해 둘 기본 고정 확장자 목록
-const DEFAULT_FIXED_EXTENSION_NAMES = ['bat', 'cmd', 'com', 'cpl', 'exe', 'scr', 'js']
+import {
+    DEFAULT_RULESET_KEY,
+    toPolicyResponse,
+} from '@/lib/extension-policy-api'
 
 type FixedExtensionInput = {
     name: string
@@ -28,40 +27,14 @@ function toFixedEnabled(input: FixedExtensionInput) {
     return false
 }
 
+/** 기본 룰셋 조회만 수행. 없으면 null 반환(생성하지 않음). */
 async function readDefaultRuleSet() {
-    let ruleSet = await prisma.extensionRuleSet.findUnique({
+    const ruleSet = await prisma.extensionRuleSet.findUnique({
         where: { key: DEFAULT_RULESET_KEY },
         include: { extensions: true },
     })
-
-    // 아직 기본 룰셋이 없다면, 고정 확장자만 포함된 기본 정책을 생성
-    if (!ruleSet) {
-        ruleSet = await prisma.extensionRuleSet.create({
-            data: {
-                key: DEFAULT_RULESET_KEY,
-                name: '기본 정책',
-                isDefault: true,
-                extensions: {
-                    create: DEFAULT_FIXED_EXTENSION_NAMES.map(extensionName => ({
-                        extensionName,
-                        isFixed: true,
-                        enabled: false,
-                    })),
-                },
-            },
-            include: { extensions: true },
-        })
-    }
-
-    const fixedExtensions = ruleSet.extensions
-        .filter(e => e.isFixed)
-        .map(e => ({ name: e.extensionName, enabled: e.enabled }))
-
-    const customExtensions = ruleSet.extensions
-        .filter(e => !e.isFixed)
-        .map(e => e.extensionName)
-
-    return { id: ruleSet.id, key: ruleSet.key, name: ruleSet.name, fixedExtensions, customExtensions }
+    if (!ruleSet) return null
+    return toPolicyResponse(ruleSet)
 }
 
 export async function GET() {
@@ -112,8 +85,16 @@ export async function POST(req: Request) {
         )
     }
 
-    if (customNames.length > 200) {
-        return NextResponse.json({ error: '커스텀 확장자는 최대 200개까지 등록할 수 있습니다.' }, { status: 400 })
+    const existingRuleSet = await prisma.extensionRuleSet.findUnique({
+        where: { key: DEFAULT_RULESET_KEY },
+        select: { maxCustomExtensions: true },
+    })
+    const maxCustom = existingRuleSet?.maxCustomExtensions ?? 200
+    if (customNames.length > maxCustom) {
+        return NextResponse.json(
+            { error: `커스텀 확장자는 최대 ${maxCustom}개까지 등록할 수 있습니다.` },
+            { status: 400 }
+        )
     }
 
     const saved = await prisma.$transaction(async tx => {
@@ -184,18 +165,8 @@ export async function POST(req: Request) {
         return refreshed
     })
 
-    const fixed = (saved?.extensions ?? [])
-        .filter(e => e.isFixed)
-        .map(e => ({ name: e.extensionName, enabled: e.enabled }))
-
-    const custom = (saved?.extensions ?? [])
-        .filter(e => !e.isFixed)
-        .map(e => e.extensionName)
-
     return NextResponse.json({
-        data: saved
-            ? { id: saved.id, key: DEFAULT_RULESET_KEY, name: saved.name, fixedExtensions: fixed, customExtensions: custom }
-            : null,
+        data: saved ? toPolicyResponse(saved) : null,
     })
 }
 

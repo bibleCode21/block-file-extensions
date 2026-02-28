@@ -1,12 +1,11 @@
-import { MAX_CUSTOM_EXTENSIONS } from './constants'
-
 type CustomExtensionListProps = {
     values: string[]
+    maxCount: number
     onRemove: (ext: string) => void
 }
 
-/** 커스텀 확장자 목록 + 개수 표시 영역 */
-export function CustomExtensionList({ values, onRemove }: CustomExtensionListProps) {
+/** 커스텀 확장자 목록 + 개수 표시 영역 (maxCount는 DB 정책에서 내려준 값) */
+export function CustomExtensionList({ values, maxCount, onRemove }: CustomExtensionListProps) {
     if (values.length === 0) {
         return (
             <div className="border rounded-lg px-3 py-2 min-h-[48px]">
@@ -22,7 +21,7 @@ export function CustomExtensionList({ values, onRemove }: CustomExtensionListPro
             <div className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
                     <p className="text-sm text-gray-400">
-                        {values.length}/{MAX_CUSTOM_EXTENSIONS}
+                        {values.length}/{maxCount}
                     </p>
                 </div>
                 <div className="flex flex-wrap gap-2">

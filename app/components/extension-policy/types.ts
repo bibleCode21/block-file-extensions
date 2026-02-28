@@ -9,6 +9,7 @@ export type ExtensionPolicyData = {
     id?: string
     key?: string
     name?: string
+    maxCustomExtensions?: number
     fixedExtensions?: Array<{ name: string; enabled: boolean }>
     customExtensions?: string[]
 }

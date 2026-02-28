@@ -1,11 +1,11 @@
 import type { FixedExtension } from './types'
-import { MAX_CUSTOM_EXTENSIONS } from './constants'
 
-/** 입력 정규화 + 검증만 수행. 추가(상태 변경)는 호출부에서 처리. */
+/** 입력 정규화 + 검증만 수행. 추가(상태 변경)는 호출부에서 처리. maxCustomExtensions는 DB에서 내려준 값. */
 export function validateCustomExtension(
     rawInput: string,
     fixedExtensions: FixedExtension[],
-    customExtensions: string[]
+    customExtensions: string[],
+    maxCustomExtensions: number
 ): { success: true; value: string } | { success: false; error: string } {
     let value = rawInput.trim().toLowerCase()
 
@@ -23,8 +23,8 @@ export function validateCustomExtension(
     if (customExtensions.includes(value)) {
         return { success: false, error: '이미 등록된 확장자입니다.' }
     }
-    if (customExtensions.length >= MAX_CUSTOM_EXTENSIONS) {
-        return { success: false, error: `최대 ${MAX_CUSTOM_EXTENSIONS}개까지 등록할 수 있습니다.` }
+    if (customExtensions.length >= maxCustomExtensions) {
+        return { success: false, error: `최대 ${maxCustomExtensions}개까지 등록할 수 있습니다.` }
     }
 
     return { success: true, value }
