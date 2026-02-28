@@ -1,5 +1,11 @@
 import { DEFAULT_RULESET_KEY } from '@/backend/constants/extension-policy'
 import { extensionPolicyService } from '@/backend/container'
+import type {
+    PatchFixedExtensionBodyRaw,
+    AddCustomExtensionBodyRaw,
+    PatchSettingsBodyRaw,
+    PolicySettings,
+} from '@/backend/dto/extension-policy.dto'
 import { ValidationError } from '@/backend/errors'
 import { parseJsonBody, handleError } from '@/backend/utils/request'
 import type { ControllerResponse } from '@/backend/utils/request'
@@ -28,7 +34,7 @@ export async function handleGet(): Promise<ControllerResponse> {
 }
 
 export async function handlePatch(req: Request): Promise<ControllerResponse> {
-    const parsed = await parseJsonBody<{ name?: unknown; enabled?: unknown }>(req)
+    const parsed = await parseJsonBody<PatchFixedExtensionBodyRaw>(req)
     const name = normalizeExtensionName(parsed?.name)
     const enabled = typeof parsed.enabled === 'boolean' ? parsed.enabled : undefined
     if (!name || enabled === undefined) {
@@ -48,7 +54,7 @@ export async function handlePatch(req: Request): Promise<ControllerResponse> {
 
 /** 커스텀 확장자 단건 추가 */
 export async function handlePost(req: Request): Promise<ControllerResponse> {
-    const parsed = await parseJsonBody<{ name?: unknown }>(req)
+    const parsed = await parseJsonBody<AddCustomExtensionBodyRaw>(req)
     const name = normalizeExtensionName(parsed?.name)
     if (!name) {
         return { status: 400, body: { error: '유효한 확장자 이름(영문 소문자)이 필요합니다.' } }
@@ -81,8 +87,8 @@ export async function handleDelete(ruleSetKey: string, rawName: string): Promise
 
 /** 정책 설정(maxCustomExtensions, maxExtensionNameLength) 변경 */
 export async function handlePatchSettings(req: Request): Promise<ControllerResponse> {
-    const parsed = await parseJsonBody<{ maxCustomExtensions?: unknown; maxExtensionNameLength?: unknown }>(req)
-    const settings: { maxCustomExtensions?: number; maxExtensionNameLength?: number } = {}
+    const parsed = await parseJsonBody<PatchSettingsBodyRaw>(req)
+    const settings: PolicySettings = {}
 
     if (parsed.maxCustomExtensions !== undefined) {
         if (typeof parsed.maxCustomExtensions !== 'number') {

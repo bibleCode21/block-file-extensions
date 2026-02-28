@@ -15,7 +15,7 @@ jest.mock('@/backend/container', () => ({
     extensionPolicyService: mockService,
 }))
 
-import { handleGet, handlePatch, handlePost, handleDelete, handleInit, handlePatchSettings } from '@/backend/controllers/extension-policy-controller'
+import { handleGet, handlePatch, handlePost, handleDelete, handleInit, handlePatchSettings } from '@/backend/controllers/extension-policy.controller'
 
 function createRequest(body: unknown): Request {
     return new Request('http://localhost/api/extension-policy', {

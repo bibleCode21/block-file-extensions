@@ -1,9 +1,6 @@
-import type { PolicyResponse } from '@/backend/dto/extension-policy.dto'
+import type { PolicyResponse, PolicySettings } from '@/backend/dto/extension-policy.dto'
 
-export type PolicySettings = {
-    maxCustomExtensions?: number
-    maxExtensionNameLength?: number
-}
+export type { PolicySettings } from '@/backend/dto/extension-policy.dto'
 
 export interface IExtensionPolicyService {
     getPolicy(ruleSetKey: string): Promise<PolicyResponse | null>
