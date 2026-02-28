@@ -4,7 +4,7 @@ import {
     DEFAULT_FIXED_EXTENSION_NAMES,
     MAX_EXTENSION_NAME_LENGTH,
 } from '@/backend/constants/extension-policy'
-import type { IExtensionPolicyService, SavePolicyInput } from './extension-policy.service.interface'
+import type { IExtensionPolicyService } from './extension-policy.service.interface'
 import type { ExtensionPolicyRepository } from '@/backend/repositories/extension-policy.repository'
 
 export class ExtensionPolicyService implements IExtensionPolicyService {
@@ -44,37 +44,43 @@ export class ExtensionPolicyService implements IExtensionPolicyService {
         await this.repository.updateExtensionEnabled(ext.ruleSetId, name, enabled)
     }
 
-    async savePolicy(ruleSetKey: string, input: SavePolicyInput): Promise<PolicyResponse> {
-        const { name, fixedExtensions, customExtensions } = input
-
-        const fixedMap = new Map<string, boolean>()
-        for (const ext of fixedExtensions) fixedMap.set(ext.name, ext.enabled)
-
-        const customSet = new Set<string>(customExtensions)
-        const customNames = [...customSet]
-
-        const overlap = customNames.filter(x => fixedMap.has(x))
-        if (overlap.length > 0) {
-            throw new Error(`고정 확장자와 중복된 값이 있습니다: ${overlap.join(', ')}`)
+    async addCustomExtension(ruleSetKey: string, name: string): Promise<void> {
+        if (name.length > MAX_EXTENSION_NAME_LENGTH) {
+            throw new Error(`확장자 이름은 ${MAX_EXTENSION_NAME_LENGTH}자 이하여야 합니다.`)
         }
 
-        const maxCustom = await this.repository.getMaxCustomExtensions(ruleSetKey)
-        if (customNames.length > maxCustom) {
+        const ruleSet = await this.repository.findByKey(ruleSetKey)
+        if (!ruleSet) {
+            throw new Error('정책이 없습니다. init을 먼저 호출하세요.')
+        }
+
+        const isFixedDuplicate = ruleSet.extensions.some(e => e.isFixed && e.extensionName === name)
+        if (isFixedDuplicate) {
+            throw new Error('고정 확장자에 이미 포함되어 있습니다.')
+        }
+
+        const isCustomDuplicate = ruleSet.extensions.some(e => !e.isFixed && e.extensionName === name)
+        if (isCustomDuplicate) {
+            throw new Error('이미 등록된 확장자입니다.')
+        }
+
+        const customCount = await this.repository.countCustomExtensions(ruleSet.id)
+        const maxCustom = ruleSet.maxCustomExtensions
+        if (customCount >= maxCustom) {
             throw new Error(`커스텀 확장자는 최대 ${maxCustom}개까지 등록할 수 있습니다.`)
         }
 
-        const tooLong = customNames.find(extName => extName.length > MAX_EXTENSION_NAME_LENGTH)
-        if (tooLong) {
-            throw new Error(`확장자 이름은 ${MAX_EXTENSION_NAME_LENGTH}자 이하여야 합니다. (예: ${tooLong})`)
-        }
+        await this.repository.addExtension(ruleSet.id, name, false, true)
+    }
 
-        const saved = await this.repository.syncPolicy(
-            ruleSetKey,
-            name,
-            ruleSetKey === 'default',
-            fixedMap,
-            customNames,
-        )
-        return toPolicyResponse(saved)
+    async removeCustomExtension(ruleSetKey: string, name: string): Promise<void> {
+        const ext = await this.repository.findExtension(ruleSetKey, name)
+        if (!ext) {
+            throw new Error('해당 확장자를 찾을 수 없습니다.')
+        }
+        if (ext.isFixed) {
+            throw new Error('고정 확장자는 삭제할 수 없습니다.')
+        }
+        await this.repository.removeExtension(ext.ruleSetId, name)
     }
 }

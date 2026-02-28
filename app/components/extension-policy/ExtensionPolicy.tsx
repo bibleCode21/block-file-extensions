@@ -87,15 +87,37 @@ export default function ExtensionPolicy() {
             return
         }
 
+        const newName = result.value
         setAddError(null)
-        setCustomExtensions(prev => [...prev, result.value])
+        setCustomExtensions(prev => [...prev, newName])
         setInputExt('')
+
+        fetch('/api/extension-policy', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName }),
+        })
+            .then(res => {
+                if (!res.ok) throw new Error()
+            })
+            .catch(() => {
+                setCustomExtensions(prev => prev.filter(e => e !== newName))
+                setAddError('저장에 실패했습니다. 다시 시도해 주세요.')
+            })
     }
 
     const removeExtension = (ext: string) => {
-        setCustomExtensions(prev =>
-            prev.filter(e => e !== ext)
-        )
+        setCustomExtensions(prev => prev.filter(e => e !== ext))
+
+        fetch(`/api/extension-policy/default/${encodeURIComponent(ext)}`, {
+            method: 'DELETE',
+        })
+            .then(res => {
+                if (!res.ok) throw new Error()
+            })
+            .catch(() => {
+                setCustomExtensions(prev => [...prev, ext])
+            })
     }
 
     if (loadState === 'loading') {

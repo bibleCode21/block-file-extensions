@@ -61,55 +61,28 @@ export class ExtensionPolicyRepository {
         return ruleSet?.maxCustomExtensions ?? 200
     }
 
-    async syncPolicy(
-        key: string,
-        name: string,
-        isDefault: boolean,
-        fixedExtensions: Map<string, boolean>,
-        customExtensions: string[],
-    ): Promise<RuleSetWithExtensions> {
-        const fixedNames = [...fixedExtensions.keys()]
+    async countCustomExtensions(ruleSetId: string): Promise<number> {
+        return prisma.extension.count({
+            where: { ruleSetId, isFixed: false },
+        })
+    }
 
-        return prisma.$transaction(async tx => {
-            const ruleSet = await tx.extensionRuleSet.upsert({
-                where: { key },
-                create: { key, name, isDefault },
-                update: { name, isDefault },
-            })
+    async addExtension(
+        ruleSetId: string,
+        extensionName: string,
+        isFixed: boolean,
+        enabled: boolean,
+    ): Promise<void> {
+        await prisma.extension.create({
+            data: { ruleSetId, extensionName, isFixed, enabled },
+        })
+    }
 
-            await tx.extension.deleteMany({
-                where: {
-                    ruleSetId: ruleSet.id,
-                    OR: [
-                        { isFixed: true, extensionName: { notIn: fixedNames } },
-                        { isFixed: false, extensionName: { notIn: customExtensions } },
-                    ],
-                },
-            })
-
-            for (const [extensionName, enabled] of fixedExtensions.entries()) {
-                await tx.extension.upsert({
-                    where: { ruleSetId_extensionName: { ruleSetId: ruleSet.id, extensionName } },
-                    create: { ruleSetId: ruleSet.id, extensionName, enabled, isFixed: true },
-                    update: { enabled, isFixed: true },
-                })
-            }
-
-            for (const extensionName of customExtensions) {
-                await tx.extension.upsert({
-                    where: { ruleSetId_extensionName: { ruleSetId: ruleSet.id, extensionName } },
-                    create: { ruleSetId: ruleSet.id, extensionName, enabled: true, isFixed: false },
-                    update: { enabled: true, isFixed: false },
-                })
-            }
-
-            const refreshed = await tx.extensionRuleSet.findUnique({
-                where: { id: ruleSet.id },
-                include: { extensions: true },
-            })
-
-            if (!refreshed) throw new Error('정책 저장 후 조회에 실패했습니다.')
-            return refreshed
+    async removeExtension(ruleSetId: string, extensionName: string): Promise<void> {
+        await prisma.extension.delete({
+            where: {
+                ruleSetId_extensionName: { ruleSetId, extensionName },
+            },
         })
     }
 }
