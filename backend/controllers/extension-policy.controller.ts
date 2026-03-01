@@ -5,6 +5,7 @@ import type {
     AddCustomExtensionBodyRaw,
     PatchSettingsBodyRaw,
     PolicySettings,
+    JsonPrimitive,
 } from '@/backend/dto/extension-policy.dto'
 import { ValidationError } from '@/backend/errors'
 import { parseJsonBody, handleError } from '@/backend/utils/request'
@@ -18,7 +19,7 @@ function validateRuleSetKey(key: string): void {
     }
 }
 
-function normalizeExtensionName(raw: unknown): string | null {
+function normalizeExtensionName(raw: JsonPrimitive): string | null {
     if (typeof raw !== 'string') return null
     let value = raw.trim().toLowerCase()
     if (!value) return null

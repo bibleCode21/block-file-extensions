@@ -2,6 +2,9 @@ import { AppError, ValidationError } from '@/backend/errors'
 
 export type ControllerResponse = { status: number; body: object }
 
+/** catch 절에서 받는 값. throw는 어떤 값이든 가능하므로 unknown */
+export type CaughtException = unknown
+
 const MAX_BODY_SIZE = 1024 * 10 // 10 KB
 
 export async function parseJsonBody<T = unknown>(req: Request): Promise<T> {
@@ -22,7 +25,7 @@ export async function parseJsonBody<T = unknown>(req: Request): Promise<T> {
     }
 }
 
-export function handleError(e: unknown, fallbackMessage: string): ControllerResponse {
+export function handleError(e: CaughtException, fallbackMessage: string): ControllerResponse {
     if (e instanceof AppError) {
         return { status: e.statusCode, body: { error: e.message } }
     }
